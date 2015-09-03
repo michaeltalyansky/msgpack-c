@@ -36,6 +36,7 @@ typedef struct msgpack_sbuffer {
     size_t size;
     char* data;
     size_t alloc;
+    bool userBuffer;
 } msgpack_sbuffer;
 
 static inline void msgpack_sbuffer_init(msgpack_sbuffer* sbuf)
@@ -43,9 +44,20 @@ static inline void msgpack_sbuffer_init(msgpack_sbuffer* sbuf)
     memset(sbuf, 0, sizeof(msgpack_sbuffer));
 }
 
+static inline void msgpack_sbuffer_setbuffer(msgpack_sbuffer* sbuf, char *buf, size_t len)
+{
+    if (sbuf->data) {
+	if (!sbuf->userBuffer) free(sbuf->data);
+    }
+    sbuf->data = buf;
+    sbuf->alloc = len;
+    sbuf->userBuffer = true;
+}
+
 static inline void msgpack_sbuffer_destroy(msgpack_sbuffer* sbuf)
 {
-    free(sbuf->data);
+    if (!sbuf->userBuffer)
+        free(sbuf->data);
 }
 
 static inline msgpack_sbuffer* msgpack_sbuffer_new(void)
@@ -69,6 +81,10 @@ static inline int msgpack_sbuffer_write(void* data, const char* buf, size_t len)
     msgpack_sbuffer* sbuf = (msgpack_sbuffer*)data;
 
     if(sbuf->alloc - sbuf->size < len) {
+      if (sbuf->userBuffer) {
+	return -1;
+      }
+      else {
         void* tmp;
         size_t nsize = (sbuf->alloc) ?
                 sbuf->alloc * 2 : MSGPACK_SBUFFER_INIT_SIZE;
@@ -87,6 +103,7 @@ static inline int msgpack_sbuffer_write(void* data, const char* buf, size_t len)
 
         sbuf->data = (char*)tmp;
         sbuf->alloc = nsize;
+      }
     }
 
     memcpy(sbuf->data + sbuf->size, buf, len);
@@ -100,6 +117,7 @@ static inline char* msgpack_sbuffer_release(msgpack_sbuffer* sbuf)
     sbuf->size = 0;
     sbuf->data = NULL;
     sbuf->alloc = 0;
+    sbuf->userBuffer = false;
     return tmp;
 }
 
